@@ -2789,6 +2789,8 @@ void SwingSchedulerDAG::initPolicy() {
   // After subtarget overrides, apply command line options.
   if (SwpMaxMii.getNumOccurrences())
     Policy.MaxMII = SwpMaxMii;
+  if (LimitRegPressure.getNumOccurrences())
+    Policy.ShouldLimitRegPressure = LimitRegPressure;
 }
 
 /// Process the nodes in the computed order and create the pipelined schedule
@@ -2802,7 +2804,7 @@ bool SwingSchedulerDAG::schedulePipeline(SMSchedule &Schedule) {
 
   bool scheduleFound = false;
   std::unique_ptr<HighRegisterPressureDetector> HRPDetector;
-  if (LimitRegPressure) {
+  if (Policy.ShouldLimitRegPressure) {
     HRPDetector =
         std::make_unique<HighRegisterPressureDetector>(Loop.getHeader(), MF);
     HRPDetector->init(RegClassInfo);
@@ -2886,9 +2888,9 @@ bool SwingSchedulerDAG::schedulePipeline(SMSchedule &Schedule) {
     if (scheduleFound)
       scheduleFound = Schedule.isValidSchedule(this);
 
-    // If a schedule was found and the option is enabled, check if the schedule
-    // might generate additional register spills/fills.
-    if (scheduleFound && LimitRegPressure)
+    // If a schedule was found and the detector is enabled, check if the
+    // schedule might generate additional register spills/fills.
+    if (scheduleFound && HRPDetector)
       scheduleFound =
           !HRPDetector->detect(this, Schedule, Schedule.getMaxStageCount());
   }
