@@ -3304,6 +3304,65 @@ it. This can lead to false positives.
    is_null(ptr); // false positive: the pointer is compared, not dereferenced
  }
 
+.. _alpha-core-UseAfterLifetimeEnd:
+
+alpha.core.UseAfterLifetimeEnd (C, C++)
+"""""""""""""""""""""""""""""""""""""""
+Check for returned pointers and references that are bound to an object whose
+lifetime ends when the function returns. The checker only analyzes code that
+is annotated with the ``[[clang::lifetimebound]]`` attribute. The annotation
+tells the checker which object the returned value is bound to.
+
+.. code-block:: cpp
+
+ int *bound(int *p [[clang::lifetimebound]]);
+
+ int *direct_return() {
+   int i = 5; // note: 'i' initialized here
+   return bound(&i); // warn: returning value bound to 'i' that will go
+                     //       out of scope
+ }
+
+The attribute states that the returned value may refer to the annotated
+parameter or to the object the function is called on. These are the two
+places where the attribute can be applied.
+
+.. code-block:: cpp
+
+ struct Wrapper {
+   int value;
+   int &get() [[clang::lifetimebound]] { return value; }
+ };
+
+ int &method_return() {
+   Wrapper w;
+   return w.get(); // warn: returning value bound to 'w' that will go out
+                   //       of scope
+ }
+
+:ref:`core-StackAddressEscape` reports returning the address of a local object
+directly. This checker extends that detection through functions that are
+annotated with ``[[clang::lifetimebound]]``.
+
+:ref:`alpha-core-DanglingPtrDeref` reports the use of a dangling pointer inside
+a function while this checker reports the returned value at the point where the
+function returns.
+
+:ref:`cplusplus-InnerPointer` reports similar errors for inner pointers of C++
+containers that are used after re/deallocation without relying on annotations.
+
+**Limitations**
+
+The checker trusts the annotation, so any incorrect annotation can cause false
+positives.
+
+A dangling pointer that is held by a compound object (a struct field) is not
+tracked, so returning such an object is not reported.
+
+Only objects whose memory region is on the stack are tracked. A returned value
+that is bound to heap-allocated memory is not reported. Interoperability
+between this checker and :ref:`unix-Malloc` would address this limitation.
+
 .. _alpha-core-DynamicTypeChecker:
 
 alpha.core.DynamicTypeChecker (ObjC)
